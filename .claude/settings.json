@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Users/ToddS/Source/Repos/tcgplayer-inventory-pricing-tool/**)",
+      "Read(//d/Users/ToddS/Source/Repos/tcgplayer-inventory-pricing-tool/app/routes/help/**)",
+      "Read(//d/Users/ToddS/Source/Repos/tcgplayer-inventory-pricing-tool/app/hooks/**)",
+      "Read(//d/Users/ToddS/Source/Repos/tcgplayer-inventory-pricing-tool/app/utilities/**)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npx react-router *)",
+      "Bash(npx tsc *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174/)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(pkill -f \"react-router dev\")"
+    ]
+  }
+}
