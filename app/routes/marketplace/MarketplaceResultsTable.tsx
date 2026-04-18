@@ -203,7 +203,6 @@ function ResultRow({
           <Typography
             variant="body2"
             noWrap
-            sx={{ maxWidth: 220 }}
           >
             {listing.productName}
           </Typography>
@@ -212,7 +211,7 @@ function ResultRow({
       <TableCell>
         <Stack direction="row" alignItems="center" spacing={0.5}>
           <Stack sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+            <Typography variant="body2" noWrap>
               {listing.setName}
             </Typography>
             <Typography
@@ -235,7 +234,7 @@ function ResultRow({
         </Stack>
       </TableCell>
       <TableCell>
-        <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
+        <Typography variant="body2" noWrap>
           {listing.rarity}
         </Typography>
       </TableCell>

@@ -28,6 +28,10 @@ import Papa from "papaparse";
 import PageHeader from "~/components/PageHeader";
 import FileUploadZone from "~/components/FileUploadZone";
 import StatCard from "~/components/StatCard";
+import ResultsFilterBar, {
+  type FilterState,
+  EMPTY_FILTERS,
+} from "~/components/ResultsFilterBar";
 import { useLocalStorageState } from "~/hooks/useLocalStorageState";
 import { DEFAULT_BUYLIST_CONFIG } from "~/engine/defaults";
 import {
@@ -79,6 +83,7 @@ export default function BuylistPage() {
     "buylist_rowsPerPage",
     250
   );
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
   const processFile = useCallback(
     (file: File, cfg: BuylistPricingConfig) => {
@@ -144,15 +149,67 @@ export default function BuylistPage() {
     setPendingFile(null);
     setActiveStep(0);
     setPage(0);
+    setFilters(EMPTY_FILTERS);
   }, []);
 
+  const handleFiltersChange = useCallback((newFilters: FilterState) => {
+    setFilters(newFilters);
+    setPage(0);
+  }, []);
+
+  const filterOptions = useMemo(
+    () => ({
+      sets: [...new Set(listings.map((l) => l.setName))].sort(),
+      rarities: [...new Set(listings.map((l) => l.rarity))].sort(),
+      conditions: [...new Set(listings.map((l) => l.condition))].sort(),
+    }),
+    [listings]
+  );
+
+  const filteredListings = useMemo(() => {
+    return listings.filter((listing) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (
+          !listing.productName.toLowerCase().includes(q) &&
+          !listing.setName.toLowerCase().includes(q) &&
+          !listing.number.toLowerCase().includes(q) &&
+          !listing.rarity.toLowerCase().includes(q)
+        )
+          return false;
+      }
+      if (filters.sets.length > 0 && !filters.sets.includes(listing.setName))
+        return false;
+      if (
+        filters.rarities.length > 0 &&
+        !filters.rarities.includes(listing.rarity)
+      )
+        return false;
+      if (
+        filters.conditions.length > 0 &&
+        !filters.conditions.includes(listing.condition)
+      )
+        return false;
+      if (filters.changeDirection !== "all") {
+        const delta = listing.myBuylistPrice - listing.currentBuylistPrice;
+        if (filters.changeDirection === "up" && delta <= 0) return false;
+        if (filters.changeDirection === "down" && delta >= 0) return false;
+      }
+      return true;
+    });
+  }, [listings, filters]);
+
   const pagedListings = useMemo(
-    () => listings.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [listings, page, rowsPerPage]
+    () =>
+      filteredListings.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage
+      ),
+    [filteredListings, page, rowsPerPage]
   );
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth={false}>
       <PageHeader
         title="Buylist Pricing"
         description="Update your buylist prices based on market data to attract sellers at the right margins."
@@ -320,13 +377,24 @@ export default function BuylistPage() {
             </Button>
           </Stack>
 
+          {/* Search & Filter */}
+          <ResultsFilterBar
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            availableSets={filterOptions.sets}
+            availableRarities={filterOptions.rarities}
+            availableConditions={filterOptions.conditions}
+            totalCount={listings.length}
+            filteredCount={filteredListings.length}
+          />
+
           <BuylistResultsTable listings={pagedListings} />
 
-          {listings.length > rowsPerPage && (
+          {filteredListings.length > rowsPerPage && (
             <TablePagination
               component="div"
               rowsPerPageOptions={[100, 250, 500, 1000]}
-              count={listings.length}
+              count={filteredListings.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={(_, newPage) => setPage(newPage)}

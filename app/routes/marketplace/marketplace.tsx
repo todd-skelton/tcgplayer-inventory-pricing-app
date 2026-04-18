@@ -25,6 +25,10 @@ import Papa from "papaparse";
 import PageHeader from "~/components/PageHeader";
 import FileUploadZone from "~/components/FileUploadZone";
 import StatCard from "~/components/StatCard";
+import ResultsFilterBar, {
+  type FilterState,
+  EMPTY_FILTERS,
+} from "~/components/ResultsFilterBar";
 import { useLocalStorageState } from "~/hooks/useLocalStorageState";
 import { DEFAULT_MARKETPLACE_CONFIG } from "~/engine/defaults";
 import {
@@ -89,6 +93,7 @@ export default function MarketplacePage() {
   );
   const [sortKey, setSortKey] = useState<SortKey>("productName");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
   const processFile = useCallback(
     (file: File) => {
@@ -233,6 +238,12 @@ export default function MarketplacePage() {
     setSummary(null);
     setActiveStep(0);
     setPage(0);
+    setFilters(EMPTY_FILTERS);
+  }, []);
+
+  const handleFiltersChange = useCallback((newFilters: FilterState) => {
+    setFilters(newFilters);
+    setPage(0);
   }, []);
 
   const handleSort = useCallback(
@@ -300,13 +311,60 @@ export default function MarketplacePage() {
     return sorted;
   }, [listings, sortKey, sortDirection]);
 
+  const filterOptions = useMemo(
+    () => ({
+      sets: [...new Set(listings.map((l) => l.setName))].sort(),
+      rarities: [...new Set(listings.map((l) => l.rarity))].sort(),
+      conditions: [...new Set(listings.map((l) => l.condition))].sort(),
+    }),
+    [listings]
+  );
+
+  const filteredListings = useMemo(() => {
+    return sortedListings.filter((listing) => {
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        if (
+          !listing.productName.toLowerCase().includes(q) &&
+          !listing.setName.toLowerCase().includes(q) &&
+          !listing.number.toLowerCase().includes(q) &&
+          !listing.rarity.toLowerCase().includes(q)
+        )
+          return false;
+      }
+      if (filters.sets.length > 0 && !filters.sets.includes(listing.setName))
+        return false;
+      if (
+        filters.rarities.length > 0 &&
+        !filters.rarities.includes(listing.rarity)
+      )
+        return false;
+      if (
+        filters.conditions.length > 0 &&
+        !filters.conditions.includes(listing.condition)
+      )
+        return false;
+      if (filters.changeDirection !== "all") {
+        const delta =
+          listing.tcgMarketplacePrice - listing.currentMarketplacePrice;
+        if (filters.changeDirection === "up" && delta <= 0) return false;
+        if (filters.changeDirection === "down" && delta >= 0) return false;
+      }
+      return true;
+    });
+  }, [sortedListings, filters]);
+
   const pagedListings = useMemo(
-    () => sortedListings.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [sortedListings, page, rowsPerPage]
+    () =>
+      filteredListings.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage
+      ),
+    [filteredListings, page, rowsPerPage]
   );
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth={false}>
       <PageHeader
         title="Marketplace Pricing"
         description="Upload your TCGPlayer inventory export and get optimized marketplace prices."
@@ -473,6 +531,17 @@ export default function MarketplacePage() {
             </Button>
           </Stack>
 
+          {/* Search & Filter */}
+          <ResultsFilterBar
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            availableSets={filterOptions.sets}
+            availableRarities={filterOptions.rarities}
+            availableConditions={filterOptions.conditions}
+            totalCount={listings.length}
+            filteredCount={filteredListings.length}
+          />
+
           {/* Results Table */}
           <MarketplaceResultsTable
             listings={pagedListings}
@@ -486,11 +555,11 @@ export default function MarketplacePage() {
             onToggleCardLock={handleToggleCardLock}
           />
 
-          {listings.length > rowsPerPage && (
+          {filteredListings.length > rowsPerPage && (
             <TablePagination
               component="div"
               rowsPerPageOptions={[100, 250, 500, 1000]}
-              count={listings.length}
+              count={filteredListings.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={(_, newPage) => setPage(newPage)}

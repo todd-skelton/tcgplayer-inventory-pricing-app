@@ -94,7 +94,6 @@ export default function BuylistResultsTable({
                     <Typography
                       variant="body2"
                       noWrap
-                      sx={{ maxWidth: 220 }}
                     >
                       {listing.productName}
                     </Typography>
@@ -102,7 +101,7 @@ export default function BuylistResultsTable({
                 </TableCell>
                 <TableCell>
                   <Stack>
-                    <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+                    <Typography variant="body2" noWrap>
                       {listing.setName}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -111,7 +110,7 @@ export default function BuylistResultsTable({
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
+                  <Typography variant="body2" noWrap>
                     {listing.rarity}
                   </Typography>
                 </TableCell>
