@@ -364,7 +364,7 @@ export default function MarketplacePage() {
   );
 
   return (
-    <Container maxWidth={false}>
+    <Container maxWidth={false} sx={{ overflow: "hidden" }}>
       <PageHeader
         title="Marketplace Pricing"
         description="Upload your TCGPlayer inventory export and get optimized marketplace prices."
@@ -547,6 +547,7 @@ export default function MarketplacePage() {
             listings={pagedListings}
             lockedSets={config.lockedSets ?? []}
             lockedCards={config.lockedCards ?? []}
+            lockMode={config.lockMode ?? "full"}
             sortKey={sortKey}
             sortDirection={sortDirection}
             onSort={handleSort}

@@ -209,7 +209,7 @@ export default function BuylistPage() {
   );
 
   return (
-    <Container maxWidth={false}>
+    <Container maxWidth={false} sx={{ overflow: "hidden" }}>
       <PageHeader
         title="Buylist Pricing"
         description="Update your buylist prices based on market data to attract sellers at the right margins."

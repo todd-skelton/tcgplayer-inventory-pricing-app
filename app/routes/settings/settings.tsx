@@ -31,6 +31,8 @@ import {
   DialogContent,
   DialogActions,
   DialogContentText,
+  ToggleButtonGroup,
+  ToggleButton,
 } from "@mui/material";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SaveIcon from "@mui/icons-material/Save";
@@ -53,6 +55,7 @@ import { currencyFormatter } from "~/engine/formatters";
 import type {
   MarketplacePricingConfig,
   CardLock,
+  LockMode,
   BuylistPricingConfig,
 } from "~/engine/types";
 
@@ -214,11 +217,15 @@ export default function SettingsPage() {
         <PriceLocksTab
           lockedSets={config.lockedSets ?? []}
           lockedCards={config.lockedCards ?? []}
+          lockMode={config.lockMode ?? "full"}
           onLockedSetsChange={(lockedSets) =>
             setConfig({ ...config, lockedSets })
           }
           onLockedCardsChange={(lockedCards) =>
             setConfig({ ...config, lockedCards })
+          }
+          onLockModeChange={(lockMode) =>
+            setConfig({ ...config, lockMode })
           }
         />
       )}
@@ -1099,13 +1106,17 @@ function AddPrefixInline({ onAdd }: { onAdd: (prefix: string) => void }) {
 function PriceLocksTab({
   lockedSets,
   lockedCards,
+  lockMode,
   onLockedSetsChange,
   onLockedCardsChange,
+  onLockModeChange,
 }: {
   lockedSets: string[];
   lockedCards: CardLock[];
+  lockMode: LockMode;
   onLockedSetsChange: (sets: string[]) => void;
   onLockedCardsChange: (cards: CardLock[]) => void;
+  onLockModeChange: (mode: LockMode) => void;
 }) {
   const [newSet, setNewSet] = useState("");
   const [newCardNumber, setNewCardNumber] = useState("");
@@ -1134,6 +1145,52 @@ function PriceLocksTab({
 
   return (
     <Stack spacing={3}>
+      {/* Lock Mode */}
+      <Paper
+        elevation={0}
+        sx={{ p: 3, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+      >
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6" fontWeight={700}>
+              Lock Mode
+            </Typography>
+            <Tooltip title="Controls how locks behave: Full blocks all price changes, Partial only blocks decreases (allows increases).">
+              <HelpOutlineIcon fontSize="small" color="action" />
+            </Tooltip>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Choose how locked sets and cards behave when the pricing engine runs.
+          </Typography>
+
+          <ToggleButtonGroup
+            value={lockMode}
+            exclusive
+            onChange={(_e, value) => {
+              if (value !== null) onLockModeChange(value as LockMode);
+            }}
+            size="small"
+          >
+            <ToggleButton value="full">
+              Full Lock
+            </ToggleButton>
+            <ToggleButton value="partial">
+              Partial Lock
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          {lockMode === "full" ? (
+            <Alert severity="warning" variant="outlined">
+              <strong>Full lock</strong> — Locked items will not have any price changes, neither increases nor decreases.
+            </Alert>
+          ) : (
+            <Alert severity="info" variant="outlined">
+              <strong>Partial lock</strong> — Locked items can still have price <em>increases</em>, but price decreases are blocked. Useful for protecting against drops while still allowing upward movement.
+            </Alert>
+          )}
+        </Stack>
+      </Paper>
+
       {/* Set Locks */}
       <Paper
         elevation={0}
@@ -1144,17 +1201,22 @@ function PriceLocksTab({
             <Typography variant="h6" fontWeight={700}>
               Set Locks
             </Typography>
-            <Tooltip title="Locked sets will have no price changes at all — neither increases nor decreases.">
+            <Tooltip title={lockMode === "full"
+              ? "Locked sets will have no price changes at all — neither increases nor decreases."
+              : "Locked sets will only allow price increases — decreases are blocked."
+            }>
               <HelpOutlineIcon fontSize="small" color="action" />
             </Tooltip>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Lock entire sets to prevent any price changes. You can also toggle
+            Lock entire sets to prevent {lockMode === "full" ? "any" : "downward"} price changes. You can also toggle
             set locks directly from the results table next to the set name.
           </Typography>
 
           <Alert severity="warning" variant="outlined">
-            Set locks block all price changes — both increases and decreases.
+            {lockMode === "full"
+              ? "Set locks block all price changes — both increases and decreases."
+              : "Set locks block price decreases — increases are still allowed."}
           </Alert>
 
           <Alert severity="info" variant="outlined" icon={false}>
@@ -1240,12 +1302,15 @@ function PriceLocksTab({
             <Typography variant="h6" fontWeight={700}>
               Card Locks
             </Typography>
-            <Tooltip title="Locked cards (by number + rarity) will have no price changes at all.">
+            <Tooltip title={lockMode === "full"
+              ? "Locked cards (by number + rarity) will have no price changes at all."
+              : "Locked cards (by number + rarity) will only allow price increases — decreases are blocked."
+            }>
               <HelpOutlineIcon fontSize="small" color="action" />
             </Tooltip>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            Lock individual cards by their card number and rarity to prevent any
+            Lock individual cards by their card number and rarity to prevent {lockMode === "full" ? "any" : "downward"}{" "}
             price changes. You can also toggle card locks from the results table
             using the lock icon in the Actions column.
           </Typography>

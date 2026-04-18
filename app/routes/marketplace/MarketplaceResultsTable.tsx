@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
-import type { Listing, CardLock } from "~/engine/types";
+import type { Listing, CardLock, LockMode } from "~/engine/types";
 import {
   currencyFormatter,
   changeCurrencyFormatter,
@@ -41,6 +41,7 @@ interface MarketplaceResultsTableProps {
   listings: Listing[];
   lockedSets: string[];
   lockedCards: CardLock[];
+  lockMode: LockMode;
   sortKey: SortKey;
   sortDirection: SortDirection;
   onSort: (key: SortKey) => void;
@@ -63,10 +64,54 @@ function checkCardLocked(
   );
 }
 
+const baseCellSx = {
+  px: { xs: 0.75, sm: 1, md: 1.25 },
+  py: 0.75,
+  verticalAlign: "top",
+} as const;
+
+const headerSx = {
+  ...baseCellSx,
+  fontWeight: 700,
+  whiteSpace: "nowrap",
+  bgcolor: "background.paper",
+} as const;
+
+const columnSx = {
+  product: { width: { xs: 180, md: 220, lg: 260 } },
+  set: { width: { xs: 150, md: 185, lg: 210 } },
+  rarity: { width: { xs: 92, lg: 112 } },
+  condition: { width: { xs: 90, lg: 110 } },
+  market: { width: { xs: 78, lg: 94 } },
+  low: { width: { xs: 78, lg: 94 } },
+  lowShipping: { width: { xs: 92, lg: 108 } },
+  quantity: { width: 54 },
+  currentPrice: { width: { xs: 90, lg: 108 } },
+  newPrice: { width: { xs: 94, lg: 112 } },
+  change: { width: { xs: 108, lg: 124 } },
+  actions: { width: 64, minWidth: 64 },
+} as const;
+
+const truncatedTextSx = {
+  display: "block",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
+
+const numericCellSx = { whiteSpace: "nowrap" } as const;
+
+const stickyActionSx = {
+  position: "sticky",
+  right: 0,
+  boxShadow: "inset 1px 0 0 rgba(0, 0, 0, 0.12)",
+} as const;
+
 export default function MarketplaceResultsTable({
   listings,
   lockedSets,
   lockedCards,
+  lockMode,
   sortKey,
   sortDirection,
   onSort,
@@ -84,14 +129,13 @@ export default function MarketplaceResultsTable({
     );
   }
 
-  const headerSx = { fontWeight: 700, whiteSpace: "nowrap" } as const;
-
   const sortableHeader = (
     label: string,
     key: SortKey,
-    align?: "left" | "right" | "center"
+    align?: "left" | "right" | "center",
+    sx?: object
   ) => (
-    <TableCell sx={headerSx} align={align}>
+    <TableCell sx={sx ? { ...headerSx, ...sx } : headerSx} align={align}>
       <TableSortLabel
         active={sortKey === key}
         direction={sortKey === key ? sortDirection : "asc"}
@@ -103,22 +147,48 @@ export default function MarketplaceResultsTable({
   );
 
   return (
-    <Box sx={{ overflow: "auto" }}>
-      <Table size="small" stickyHeader>
+    <Box sx={{ overflowX: "auto", minWidth: 0 }}>
+      <Table
+        size="small"
+        stickyHeader
+        sx={{
+          width: "100%",
+          tableLayout: "fixed",
+          minWidth: 0,
+        }}
+      >
         <TableHead>
           <TableRow>
-            {sortableHeader("Product", "productName")}
-            {sortableHeader("Set / Number", "setName")}
-            {sortableHeader("Rarity", "rarity")}
-            {sortableHeader("Condition", "condition")}
-            {sortableHeader("Market", "tcgMarketPrice", "right")}
-            {sortableHeader("Low", "tcgLowPrice", "right")}
-            {sortableHeader("Low + Ship", "tcgLowPriceWithShipping", "right")}
-            {sortableHeader("Qty", "quantity", "right")}
-            {sortableHeader("Current Price", "currentMarketplacePrice", "right")}
-            {sortableHeader("New Price", "tcgMarketplacePrice", "right")}
-            {sortableHeader("Change", "change", "center")}
-            <TableCell sx={headerSx} align="center">
+            {sortableHeader("Product", "productName", undefined, columnSx.product)}
+            {sortableHeader("Set / Number", "setName", undefined, columnSx.set)}
+            {sortableHeader("Rarity", "rarity", undefined, columnSx.rarity)}
+            {sortableHeader("Condition", "condition", undefined, columnSx.condition)}
+            {sortableHeader("Market", "tcgMarketPrice", "right", columnSx.market)}
+            {sortableHeader("Low", "tcgLowPrice", "right", columnSx.low)}
+            {sortableHeader(
+              "Low + Ship",
+              "tcgLowPriceWithShipping",
+              "right",
+              columnSx.lowShipping
+            )}
+            {sortableHeader("Qty", "quantity", "right", columnSx.quantity)}
+            {sortableHeader(
+              "Current Price",
+              "currentMarketplacePrice",
+              "right",
+              columnSx.currentPrice
+            )}
+            {sortableHeader(
+              "New Price",
+              "tcgMarketplacePrice",
+              "right",
+              columnSx.newPrice
+            )}
+            {sortableHeader("Change", "change", "center", columnSx.change)}
+            <TableCell
+              sx={[headerSx, columnSx.actions, stickyActionSx, { zIndex: 4 }]}
+              align="center"
+            >
               Actions
             </TableCell>
           </TableRow>
@@ -130,6 +200,7 @@ export default function MarketplaceResultsTable({
               listing={listing}
               setLocked={checkSetLocked(listing.setName, lockedSets)}
               cardLocked={checkCardLocked(listing.number, listing.rarity, lockedCards)}
+              lockMode={lockMode}
               onPriceChange={onPriceChange}
               onToggleSetLock={onToggleSetLock}
               onToggleCardLock={onToggleCardLock}
@@ -145,6 +216,7 @@ function ResultRow({
   listing,
   setLocked,
   cardLocked,
+  lockMode,
   onPriceChange,
   onToggleSetLock,
   onToggleCardLock,
@@ -152,6 +224,7 @@ function ResultRow({
   listing: Listing;
   setLocked: boolean;
   cardLocked: boolean;
+  lockMode: LockMode;
   onPriceChange: (tcgPlayerId: string, newPrice: number) => void;
   onToggleSetLock: (setName: string) => void;
   onToggleCardLock: (number: string, rarity: string) => void;
@@ -160,6 +233,7 @@ function ResultRow({
   const [editValue, setEditValue] = useState("");
 
   const locked = setLocked || cardLocked;
+  const rowBg = locked ? "action.selected" : "background.paper";
 
   const delta =
     listing.tcgMarketplacePrice - listing.currentMarketplacePrice;
@@ -191,6 +265,8 @@ function ResultRow({
     <TableRow
       sx={{
         "&:hover": { bgcolor: "action.hover" },
+        "& .sticky-action-cell": { bgcolor: rowBg },
+        "&:hover .sticky-action-cell": { bgcolor: "action.hover" },
         ...(locked && {
           bgcolor: "action.selected",
           borderLeft: "3px solid",
@@ -198,64 +274,73 @@ function ResultRow({
         }),
       }}
     >
-      <TableCell>
+      <TableCell sx={columnSx.product}>
         <Tooltip title={listing.productName} placement="top-start">
           <Typography
             variant="body2"
             noWrap
+            sx={truncatedTextSx}
           >
             {listing.productName}
           </Typography>
         </Tooltip>
       </TableCell>
-      <TableCell>
+      <TableCell sx={columnSx.set}>
         <Stack direction="row" alignItems="center" spacing={0.5}>
           <Stack sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="body2" noWrap>
+            <Typography variant="body2" noWrap sx={truncatedTextSx}>
               {listing.setName}
             </Typography>
             <Typography
               variant="caption"
               color="text.secondary"
+              sx={truncatedTextSx}
             >
               {listing.number}
             </Typography>
           </Stack>
-          <Tooltip title={setLocked ? "Unlock set" : "Lock set (blocks all price changes)"}>
+          <Tooltip title={setLocked ? "Unlock set" : `Lock set (${lockMode === "partial" ? "blocks decreases only" : "blocks all price changes"})`}>
             <IconButton
               size="small"
               color={setLocked ? "warning" : "default"}
               onClick={() => onToggleSetLock(listing.setName)}
-              sx={{ ml: 0.5, opacity: setLocked ? 1 : 0.4, "&:hover": { opacity: 1 } }}
+              sx={{
+                ml: 0.25,
+                p: 0.25,
+                opacity: setLocked ? 1 : 0.4,
+                "&:hover": { opacity: 1 },
+              }}
             >
               {setLocked ? <LockIcon sx={{ fontSize: 14 }} /> : <LockOpenIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
         </Stack>
       </TableCell>
-      <TableCell>
-        <Typography variant="body2" noWrap>
+      <TableCell sx={columnSx.rarity}>
+        <Typography variant="body2" noWrap sx={truncatedTextSx}>
           {listing.rarity}
         </Typography>
       </TableCell>
-      <TableCell>
-        <Typography variant="body2">{listing.condition}</Typography>
+      <TableCell sx={columnSx.condition}>
+        <Typography variant="body2" noWrap sx={truncatedTextSx}>
+          {listing.condition}
+        </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.market, numericCellSx]}>
         <Typography variant="body2">
           {isNaN(listing.tcgMarketPrice)
             ? "-"
             : currencyFormatter.format(listing.tcgMarketPrice)}
         </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.low, numericCellSx]}>
         <Typography variant="body2">
           {isNaN(listing.tcgLowPrice)
             ? "-"
             : currencyFormatter.format(listing.tcgLowPrice)}
         </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.lowShipping, numericCellSx]}>
         <Typography variant="body2">
           {isNaN(listing.tcgLowPriceWithShipping)
             ? "-"
@@ -264,18 +349,18 @@ function ResultRow({
               )}
         </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.quantity, numericCellSx]}>
         <Typography variant="body2">
           {(listing.totalQuantity || 0) +
             (listing.addToQuantity || 0)}
         </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.currentPrice, numericCellSx]}>
         <Typography variant="body2">
           {currencyFormatter.format(listing.currentMarketplacePrice)}
         </Typography>
       </TableCell>
-      <TableCell align="right">
+      <TableCell align="right" sx={[columnSx.newPrice, numericCellSx]}>
         {editing ? (
           <TextField
             size="small"
@@ -294,7 +379,7 @@ function ResultRow({
                   fontSize: "0.875rem",
                   fontWeight: 700,
                   py: 0,
-                  "& input": { textAlign: "right", p: "4px 8px", width: 70 },
+                  "& input": { textAlign: "right", p: "4px 8px", width: 64 },
                 },
               },
             }}
@@ -319,8 +404,13 @@ function ResultRow({
           </Tooltip>
         )}
       </TableCell>
-      <TableCell align="center">
-        <Stack direction="row" spacing={0.5} justifyContent="center">
+      <TableCell align="center" sx={columnSx.change}>
+        <Stack
+          direction={{ xs: "column", lg: "row" }}
+          spacing={{ xs: 0, lg: 0.5 }}
+          justifyContent="center"
+          alignItems="center"
+        >
           <Typography
             variant="caption"
             fontWeight={600}
@@ -336,14 +426,19 @@ function ResultRow({
           </Typography>
         </Stack>
       </TableCell>
-      <TableCell align="center">
-        <Tooltip title={cardLocked ? "Unlock card" : "Lock card (blocks all price changes)"}>
+      <TableCell
+        align="center"
+        className="sticky-action-cell"
+        sx={[columnSx.actions, stickyActionSx, { zIndex: 2 }]}
+      >
+        <Tooltip title={cardLocked ? "Unlock card" : `Lock card (${lockMode === "partial" ? "blocks decreases only" : "blocks all price changes"})`}>
           <IconButton
             size="small"
             color={cardLocked ? "primary" : "default"}
             onClick={() =>
               onToggleCardLock(listing.number, listing.rarity)
             }
+            sx={{ p: 0.5 }}
           >
             {cardLocked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
           </IconButton>

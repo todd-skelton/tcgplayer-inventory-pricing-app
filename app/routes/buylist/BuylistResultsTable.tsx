@@ -34,7 +34,7 @@ export default function BuylistResultsTable({
   }
 
   return (
-    <Box sx={{ overflow: "auto" }}>
+    <Box sx={{ overflowX: "auto", minWidth: 0 }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>

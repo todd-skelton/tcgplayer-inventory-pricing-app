@@ -101,6 +101,8 @@ export interface SetOverride {
   defaultFloor: number;
 }
 
+export type LockMode = "partial" | "full";
+
 export interface CardLock {
   number: string;
   rarity: string;
@@ -138,6 +140,9 @@ export interface MarketplacePricingConfig {
 
   // Card locks – individual cards locked by number + rarity
   lockedCards: CardLock[];
+
+  // Lock mode: "full" blocks all changes, "partial" only allows increases
+  lockMode: LockMode;
 }
 
 export interface BuylistPricingConfig {

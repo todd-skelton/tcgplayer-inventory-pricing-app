@@ -52,6 +52,7 @@ export const DEFAULT_MARKETPLACE_CONFIG: MarketplacePricingConfig = {
 
   lockedSets: [],
   lockedCards: [],
+  lockMode: "full",
 
   excludedIds: [
     "7933574", "7933575", "7916036", "7916037", "7916046", "7916047",

@@ -2,6 +2,7 @@ import type {
   TcgPlayerListingRaw,
   Listing,
   CardLock,
+  LockMode,
   MarketplacePricingConfig,
   SimpleMarketplacePricingConfig,
   ListingSummary,
@@ -188,16 +189,20 @@ export function calculateMarketplacePrice(
   // Step 6: Apply rarity floor
   targetPrice = Math.max(rarityFloor, targetPrice);
 
-  // Step 7a: Set lock – block all changes for locked sets
+  // Step 7a: Set lock
   if (isSetLocked(listing.setName, config.lockedSets ?? [])) {
-    listing.skippedReason = "Set locked";
-    return;
+    if (shouldBlockLockedPrice(targetPrice, listing.tcgMarketplacePrice, config.lockMode ?? "full")) {
+      listing.skippedReason = config.lockMode === "partial" ? "Set locked (decrease blocked)" : "Set locked";
+      return;
+    }
   }
 
-  // Step 7b: Card lock – block all changes for locked cards (by number + rarity)
+  // Step 7b: Card lock
   if (isCardLocked(listing.number, listing.rarity, config.lockedCards ?? [])) {
-    listing.skippedReason = "Card locked";
-    return;
+    if (shouldBlockLockedPrice(targetPrice, listing.tcgMarketplacePrice, config.lockMode ?? "full")) {
+      listing.skippedReason = config.lockMode === "partial" ? "Card locked (decrease blocked)" : "Card locked";
+      return;
+    }
   }
 
   // Step 8: Assign final price
@@ -219,6 +224,16 @@ export function isCardLocked(
   return lockedCards.some(
     (c) => c.number === number && c.rarity === rarity
   );
+}
+
+export function shouldBlockLockedPrice(
+  targetPrice: number,
+  currentPrice: number,
+  lockMode: LockMode
+): boolean {
+  if (lockMode === "full") return true;
+  // Partial: block decreases, allow increases
+  return targetPrice <= currentPrice;
 }
 
 function getRarityFloor(
