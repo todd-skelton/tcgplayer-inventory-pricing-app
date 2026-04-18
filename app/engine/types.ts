@@ -101,6 +101,11 @@ export interface SetOverride {
   defaultFloor: number;
 }
 
+export interface CardLock {
+  number: string;
+  rarity: string;
+}
+
 export interface MarketplacePricingConfig {
   // General
   allowedProductLine: string;
@@ -127,6 +132,12 @@ export interface MarketplacePricingConfig {
 
   // Excluded items
   excludedIds: string[];
+
+  // Set locks – set names where prices won't change at all (no increases or decreases)
+  lockedSets: string[];
+
+  // Card locks – individual cards locked by number + rarity
+  lockedCards: CardLock[];
 }
 
 export interface BuylistPricingConfig {

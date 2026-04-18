@@ -43,12 +43,16 @@ import {
 } from "~/engine/formatters";
 import type {
   MarketplacePricingConfig,
+  CardLock,
   TcgPlayerListingRaw,
   Listing,
   ListingSummary,
 } from "~/engine/types";
 import MarketplaceSettingsPanel from "./MarketplaceSettingsPanel";
-import MarketplaceResultsTable from "./MarketplaceResultsTable";
+import MarketplaceResultsTable, {
+  type SortKey,
+  type SortDirection,
+} from "./MarketplaceResultsTable";
 
 import InventoryIcon from "@mui/icons-material/Inventory";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
@@ -83,6 +87,8 @@ export default function MarketplacePage() {
     "marketplace_rowsPerPage",
     250
   );
+  const [sortKey, setSortKey] = useState<SortKey>("productName");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const processFile = useCallback(
     (file: File) => {
@@ -147,6 +153,81 @@ export default function MarketplacePage() {
     URL.revokeObjectURL(url);
   }, [listings]);
 
+  const handlePriceChange = useCallback(
+    (tcgPlayerId: string, newPrice: number) => {
+      setListings((prev) => {
+        const updated = prev.map((l) =>
+          l.tcgPlayerId === tcgPlayerId
+            ? { ...l, tcgMarketplacePrice: newPrice }
+            : l
+        );
+        // Recalculate summary inline
+        let currentTotalValue = 0;
+        let newTotalValue = 0;
+        let totalChangePercent = 0;
+        let changeCount = 0;
+        for (const l of updated) {
+          const qty = (l.totalQuantity || 0) + (l.addToQuantity || 0);
+          currentTotalValue += (l.currentMarketplacePrice || 0) * qty;
+          newTotalValue += (l.tcgMarketplacePrice || 0) * qty;
+          if (l.currentMarketplacePrice > 0) {
+            totalChangePercent +=
+              (l.tcgMarketplacePrice - l.currentMarketplacePrice) /
+              l.currentMarketplacePrice;
+            changeCount++;
+          }
+        }
+        setSummary((s) =>
+          s
+            ? {
+                ...s,
+                currentTotalValue: Math.round(currentTotalValue * 100) / 100,
+                newTotalValue: Math.round(newTotalValue * 100) / 100,
+                valueDelta:
+                  Math.round((newTotalValue - currentTotalValue) * 100) / 100,
+                averageChangePercent:
+                  changeCount > 0 ? totalChangePercent / changeCount : 0,
+              }
+            : s
+        );
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleToggleSetLock = useCallback(
+    (setName: string) => {
+      const lockedSets = config.lockedSets ?? [];
+      const isLocked = lockedSets.includes(setName);
+      setConfig({
+        ...config,
+        lockedSets: isLocked
+          ? lockedSets.filter((s) => s !== setName)
+          : [...lockedSets, setName],
+      });
+    },
+    [config, setConfig]
+  );
+
+  const handleToggleCardLock = useCallback(
+    (number: string, rarity: string) => {
+      const lockedCards = config.lockedCards ?? [];
+      const isLocked = lockedCards.some(
+        (c) => c.number === number && c.rarity === rarity
+      );
+      setConfig({
+        ...config,
+        lockedCards: isLocked
+          ? lockedCards.filter(
+              (c) => !(c.number === number && c.rarity === rarity)
+            )
+          : [...lockedCards, { number, rarity }],
+      });
+    },
+    [config, setConfig]
+  );
+
   const handleReset = useCallback(() => {
     setListings([]);
     setSummary(null);
@@ -154,9 +235,74 @@ export default function MarketplacePage() {
     setPage(0);
   }, []);
 
+  const handleSort = useCallback(
+    (key: SortKey) => {
+      if (key === sortKey) {
+        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setSortKey(key);
+        setSortDirection("asc");
+      }
+      setPage(0);
+    },
+    [sortKey]
+  );
+
+  const sortedListings = useMemo(() => {
+    const sorted = [...listings];
+    const dir = sortDirection === "asc" ? 1 : -1;
+
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "productName":
+          cmp = a.productName.localeCompare(b.productName);
+          break;
+        case "setName":
+          cmp = a.setName.localeCompare(b.setName) || a.number.localeCompare(b.number);
+          break;
+        case "rarity":
+          cmp = a.rarity.localeCompare(b.rarity);
+          break;
+        case "condition":
+          cmp = a.condition.localeCompare(b.condition);
+          break;
+        case "tcgMarketPrice":
+          cmp = a.tcgMarketPrice - b.tcgMarketPrice;
+          break;
+        case "tcgLowPrice":
+          cmp = a.tcgLowPrice - b.tcgLowPrice;
+          break;
+        case "tcgLowPriceWithShipping":
+          cmp = a.tcgLowPriceWithShipping - b.tcgLowPriceWithShipping;
+          break;
+        case "quantity":
+          cmp =
+            (a.totalQuantity + a.addToQuantity) -
+            (b.totalQuantity + b.addToQuantity);
+          break;
+        case "currentMarketplacePrice":
+          cmp = a.currentMarketplacePrice - b.currentMarketplacePrice;
+          break;
+        case "tcgMarketplacePrice":
+          cmp = a.tcgMarketplacePrice - b.tcgMarketplacePrice;
+          break;
+        case "change": {
+          const deltaA = a.tcgMarketplacePrice - a.currentMarketplacePrice;
+          const deltaB = b.tcgMarketplacePrice - b.currentMarketplacePrice;
+          cmp = deltaA - deltaB;
+          break;
+        }
+      }
+      return cmp * dir;
+    });
+
+    return sorted;
+  }, [listings, sortKey, sortDirection]);
+
   const pagedListings = useMemo(
-    () => listings.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
-    [listings, page, rowsPerPage]
+    () => sortedListings.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+    [sortedListings, page, rowsPerPage]
   );
 
   return (
@@ -328,7 +474,17 @@ export default function MarketplacePage() {
           </Stack>
 
           {/* Results Table */}
-          <MarketplaceResultsTable listings={pagedListings} />
+          <MarketplaceResultsTable
+            listings={pagedListings}
+            lockedSets={config.lockedSets ?? []}
+            lockedCards={config.lockedCards ?? []}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            onPriceChange={handlePriceChange}
+            onToggleSetLock={handleToggleSetLock}
+            onToggleCardLock={handleToggleCardLock}
+          />
 
           {listings.length > rowsPerPage && (
             <TablePagination

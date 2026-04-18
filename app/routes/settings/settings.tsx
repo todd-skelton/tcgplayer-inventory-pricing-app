@@ -41,6 +41,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import LockIcon from "@mui/icons-material/Lock";
 
 import PageHeader from "~/components/PageHeader";
 import { useLocalStorageState } from "~/hooks/useLocalStorageState";
@@ -51,6 +52,7 @@ import {
 import { currencyFormatter } from "~/engine/formatters";
 import type {
   MarketplacePricingConfig,
+  CardLock,
   BuylistPricingConfig,
 } from "~/engine/types";
 
@@ -179,6 +181,7 @@ export default function SettingsPage() {
         <Tab label="Excluded Items" />
         <Tab label="Rarity Floors" />
         <Tab label="Pricing Rules" />
+        <Tab label="Price Locks" />
         <Tab label="Buylist" />
       </Tabs>
 
@@ -206,8 +209,22 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* Tab 3: Buylist */}
+      {/* Tab 3: Price Locks */}
       {tab === 3 && (
+        <PriceLocksTab
+          lockedSets={config.lockedSets ?? []}
+          lockedCards={config.lockedCards ?? []}
+          onLockedSetsChange={(lockedSets) =>
+            setConfig({ ...config, lockedSets })
+          }
+          onLockedCardsChange={(lockedCards) =>
+            setConfig({ ...config, lockedCards })
+          }
+        />
+      )}
+
+      {/* Tab 4: Buylist */}
+      {tab === 4 && (
         <BuylistTab
           config={buylistConfig}
           onChange={(updated) => setBuylistConfig(updated)}
@@ -286,6 +303,15 @@ function ExcludedItemsTab({
             processing. Use this for items you don't want to reprice
             automatically.
           </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> Say you have a Blue-Eyes White Dragon (TCGPlayer ID: 575643) that you've
+              manually set to a special price. Add <strong>575643</strong> here and the tool will leave it alone
+              during repricing. You can find the TCGPlayer ID in the first column of your exported CSV file from
+              TCGPlayer.
+            </Typography>
+          </Alert>
 
           <Stack direction="row" spacing={1}>
             <TextField
@@ -408,6 +434,15 @@ function RarityFloorsTab({
             Minimum prices based on card rarity. If the calculated price is
             below the floor, the floor price is used instead.
           </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> With a $2.00 default floor, if a Super Rare card's calculated price comes
+              out to $1.50, it will be raised to $2.00 instead. This protects you from listing cards below what
+              they're worth. You can set different floors for each rarity — for instance, Commons at $1.00 since
+              they're cheaper, but Quarter Century Secret Rares at $2.00 since they're almost always worth more.
+            </Typography>
+          </Alert>
 
           <TextField
             label="Default Floor (all unlisted rarities)"
@@ -543,9 +578,18 @@ function RarityFloorsTab({
             Set-Specific Floor Overrides
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Override rarity floors for specific sets. Use the 3-character set
-            prefix (e.g., "RA0" for Rarity Collection).
+            Override rarity floors for specific sets. The set prefix is the first 3 characters of
+            a card's number (e.g., a card numbered "RA02-EN001" has the prefix "RA0").
           </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> Rarity Collection (RA0) was printed in large quantities, so prices tend
+              to be lower. You might set Super Rares from that set to a $0.50 floor instead of the normal $2.00.
+              Meanwhile, Duel Terminal (DT0) cards are harder to find, so you might set a higher $2.50 default
+              floor for that set. Cards from sets without an override here use the default floors above.
+            </Typography>
+          </Alert>
 
           {config.setOverrides.map((override, idx) => (
             <SetOverrideCard
@@ -803,7 +847,7 @@ function PricingRulesTab({
                 onChange({ ...config, allowedProductLine: e.target.value })
               }
               size="small"
-              helperText="Only items from this product line will be repriced"
+              helperText='e.g. "YuGiOh" — only YuGiOh cards get repriced; Pokemon or Magic cards in your file are left alone'
             />
             <TextField
               label="Max Price Lock"
@@ -821,32 +865,36 @@ function PricingRulesTab({
                   <InputAdornment position="start">$</InputAdornment>
                 ),
               }}
-              helperText="Don't reprice items at or above this price"
+              helperText="e.g. $38 — a card priced at $40 won't be touched, protecting expensive cards from market swings"
             />
           </Stack>
           <Stack direction="row" spacing={2}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={config.skipTitledItems}
-                  onChange={(e) =>
-                    onChange({ ...config, skipTitledItems: e.target.checked })
-                  }
-                />
-              }
-              label="Skip titled/promo items"
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={config.requireBothPrices}
-                  onChange={(e) =>
-                    onChange({ ...config, requireBothPrices: e.target.checked })
-                  }
-                />
-              }
-              label="Require both market & low prices"
-            />
+            <Tooltip title='Some cards have a custom "Title" field in TCGPlayer — usually promo versions or special printings. When on, those cards are skipped to avoid mispricing them.'>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.skipTitledItems}
+                    onChange={(e) =>
+                      onChange({ ...config, skipTitledItems: e.target.checked })
+                    }
+                  />
+                }
+                label="Skip titled/promo items"
+              />
+            </Tooltip>
+            <Tooltip title="When on, a card must have both a Market Price and a Low Price to be repriced. If either is blank in your CSV (not enough sales data), the card is skipped to prevent bad pricing.">
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={config.requireBothPrices}
+                    onChange={(e) =>
+                      onChange({ ...config, requireBothPrices: e.target.checked })
+                    }
+                  />
+                }
+                label="Require both market & low prices"
+              />
+            </Tooltip>
           </Stack>
         </Stack>
       </Paper>
@@ -872,6 +920,16 @@ function PricingRulesTab({
             When enabled, the tool will try to set your price just below the
             lowest competitor when their price is close to the market price.
           </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> Say a card has a Market Price of $10.00 and the lowest competitor
+              is selling at $9.50. With a 90% threshold, the tool checks: is $9.50 at least 90% of $10.00
+              (which is $9.00)? Yes — so it undercuts by setting your price to <strong>$9.49</strong> (one
+              penny below). If the lowest price were $8.00 (below 90% of market), the tool would use the
+              market price instead, since the low price might be artificially cheap.
+            </Typography>
+          </Alert>
           {config.undercutEnabled && (
             <Stack direction="row" spacing={2}>
               <TextField
@@ -891,7 +949,7 @@ function PricingRulesTab({
                     <InputAdornment position="end">%</InputAdornment>
                   ),
                 }}
-                helperText="Undercut when low price is within this % of market"
+                helperText="e.g. 90% — only undercut when the lowest price is reasonable (at least 90% of market), not a fire sale"
               />
               <TextField
                 label="Shipping Adjustment"
@@ -909,7 +967,7 @@ function PricingRulesTab({
                     <InputAdornment position="start">$</InputAdornment>
                   ),
                 }}
-                helperText="Deducted from low+shipping for items under $5"
+                helperText="e.g. $1.31 — if Low+Shipping is $3.31 on a cheap card, the tool subtracts $1.31 to get $2.00 as the real card price"
               />
             </Stack>
           )}
@@ -940,6 +998,15 @@ function PricingRulesTab({
             Prevents prices from dropping too far below the current price for
             specified sets, protecting against flash crashes.
           </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> Say you have a card currently priced at $10.00 and the market suddenly
+              dips to $6.00. With a 75% threshold, the tool won't let it drop below $7.50 (75% of your current
+              $10.00 price) — it keeps your price at $10.00 instead. This gives you time to check whether the
+              dip is real or just a temporary glitch before you lower the price yourself.
+            </Typography>
+          </Alert>
           {config.dropProtectionEnabled && (
             <>
               <TextField
@@ -959,7 +1026,7 @@ function PricingRulesTab({
                     <InputAdornment position="end">%</InputAdornment>
                   ),
                 }}
-                helperText="Don't let price fall below this % of current"
+                helperText="e.g. 75% — a $10.00 card won't drop below $7.50 in a single update"
                 sx={{ maxWidth: 250 }}
               />
               <Box>
@@ -1026,6 +1093,246 @@ function AddPrefixInline({ onAdd }: { onAdd: (prefix: string) => void }) {
 }
 
 // ============================================================
+// Price Locks Tab
+// ============================================================
+
+function PriceLocksTab({
+  lockedSets,
+  lockedCards,
+  onLockedSetsChange,
+  onLockedCardsChange,
+}: {
+  lockedSets: string[];
+  lockedCards: CardLock[];
+  onLockedSetsChange: (sets: string[]) => void;
+  onLockedCardsChange: (cards: CardLock[]) => void;
+}) {
+  const [newSet, setNewSet] = useState("");
+  const [newCardNumber, setNewCardNumber] = useState("");
+  const [newCardRarity, setNewCardRarity] = useState("");
+
+  const addSet = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed && !lockedSets.includes(trimmed)) {
+      onLockedSetsChange([...lockedSets, trimmed]);
+    }
+  };
+
+  const addCard = () => {
+    const number = newCardNumber.trim();
+    const rarity = newCardRarity.trim();
+    if (
+      number &&
+      rarity &&
+      !lockedCards.some((c) => c.number === number && c.rarity === rarity)
+    ) {
+      onLockedCardsChange([...lockedCards, { number, rarity }]);
+      setNewCardNumber("");
+      setNewCardRarity("");
+    }
+  };
+
+  return (
+    <Stack spacing={3}>
+      {/* Set Locks */}
+      <Paper
+        elevation={0}
+        sx={{ p: 3, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+      >
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6" fontWeight={700}>
+              Set Locks
+            </Typography>
+            <Tooltip title="Locked sets will have no price changes at all — neither increases nor decreases.">
+              <HelpOutlineIcon fontSize="small" color="action" />
+            </Tooltip>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Lock entire sets to prevent any price changes. You can also toggle
+            set locks directly from the results table next to the set name.
+          </Typography>
+
+          <Alert severity="warning" variant="outlined">
+            Set locks block all price changes — both increases and decreases.
+          </Alert>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> If you lock "2024 Collectors Tin", none of the cards from that set will
+              have their prices changed — they stay exactly where you set them, even if the market goes up or
+              down. This is useful for sets where you've manually priced everything and don't want the tool to
+              override your work. The set name must match exactly as it appears in your CSV file (e.g., "2009
+              Collectors Tin", not just "2009").
+            </Typography>
+          </Alert>
+
+          <Stack direction="row" spacing={1}>
+            <TextField
+              size="small"
+              label="Set name"
+              value={newSet}
+              onChange={(e) => setNewSet(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newSet.trim()) {
+                  addSet(newSet);
+                  setNewSet("");
+                }
+              }}
+              sx={{ width: 300 }}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              disabled={!newSet.trim()}
+              onClick={() => {
+                addSet(newSet);
+                setNewSet("");
+              }}
+            >
+              Add
+            </Button>
+          </Stack>
+
+          <Divider />
+
+          <Typography variant="body2" color="text.secondary">
+            {lockedSets.length} locked set{lockedSets.length !== 1 ? "s" : ""}
+          </Typography>
+
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {lockedSets.map((s) => (
+              <Chip
+                key={s}
+                label={s}
+                size="small"
+                color="warning"
+                icon={<LockIcon />}
+                onDelete={() =>
+                  onLockedSetsChange(lockedSets.filter((x) => x !== s))
+                }
+              />
+            ))}
+          </Box>
+
+          {lockedSets.length > 0 && (
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={() => onLockedSetsChange([])}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              Clear All
+            </Button>
+          )}
+        </Stack>
+      </Paper>
+
+      {/* Card Locks */}
+      <Paper
+        elevation={0}
+        sx={{ p: 3, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+      >
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Typography variant="h6" fontWeight={700}>
+              Card Locks
+            </Typography>
+            <Tooltip title="Locked cards (by number + rarity) will have no price changes at all.">
+              <HelpOutlineIcon fontSize="small" color="action" />
+            </Tooltip>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Lock individual cards by their card number and rarity to prevent any
+            price changes. You can also toggle card locks from the results table
+            using the lock icon in the Actions column.
+          </Typography>
+
+          <Alert severity="info" variant="outlined" icon={false}>
+            <Typography variant="body2">
+              <strong>Example:</strong> Locking card number <strong>BPT-009</strong> with rarity <strong>Secret
+              Rare</strong> would freeze the price on that specific Blue-Eyes White Dragon printing. All
+              conditions (Near Mint, Lightly Played, etc.) of that exact card number + rarity combo are locked.
+              Other Blue-Eyes printings with different card numbers would still be repriced normally.
+            </Typography>
+          </Alert>
+
+          <Stack direction="row" spacing={1}>
+            <TextField
+              size="small"
+              label="Card number"
+              value={newCardNumber}
+              onChange={(e) => setNewCardNumber(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addCard();
+              }}
+              sx={{ width: 200 }}
+            />
+            <TextField
+              size="small"
+              label="Rarity"
+              value={newCardRarity}
+              onChange={(e) => setNewCardRarity(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addCard();
+              }}
+              sx={{ width: 200 }}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              disabled={!newCardNumber.trim() || !newCardRarity.trim()}
+              onClick={addCard}
+            >
+              Add
+            </Button>
+          </Stack>
+
+          <Divider />
+
+          <Typography variant="body2" color="text.secondary">
+            {lockedCards.length} locked card{lockedCards.length !== 1 ? "s" : ""}
+          </Typography>
+
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {lockedCards.map((c) => (
+              <Chip
+                key={`${c.number}|${c.rarity}`}
+                label={`${c.number} (${c.rarity})`}
+                size="small"
+                icon={<LockIcon />}
+                onDelete={() =>
+                  onLockedCardsChange(
+                    lockedCards.filter(
+                      (x) => !(x.number === c.number && x.rarity === c.rarity)
+                    )
+                  )
+                }
+              />
+            ))}
+          </Box>
+
+          {lockedCards.length > 0 && (
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={() => onLockedCardsChange([])}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              Clear All
+            </Button>
+          )}
+        </Stack>
+      </Paper>
+    </Stack>
+  );
+}
+
+// ============================================================
 // Buylist Tab
 // ============================================================
 
@@ -1047,9 +1354,17 @@ function BuylistTab({
         </Typography>
         <Typography variant="body2" color="text.secondary">
           The buylist tool sets your offer price as a percentage of the reference
-          price. Lower percentages give better margins but may attract fewer
-          sellers.
+          price. This is the price you're willing to pay when buying cards from other sellers.
         </Typography>
+
+        <Alert severity="info" variant="outlined" icon={false}>
+          <Typography variant="body2">
+            <strong>How it works:</strong> If you set this to 85%, a card with a $10.00 market price will get a
+            buylist offer of $8.50. Lower percentages (e.g., 70%) give you better profit margins but your offers
+            may be too low to attract sellers. Higher percentages (e.g., 90%) make your offers more competitive
+            but leave less room for profit when you resell.
+          </Typography>
+        </Alert>
         <TextField
           label="Buy at % of reference price"
           type="number"

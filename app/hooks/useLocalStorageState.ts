@@ -8,7 +8,20 @@ export function useLocalStorageState<T>(
     if (typeof window === "undefined") return defaultValue;
     try {
       const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : defaultValue;
+      if (!stored) return defaultValue;
+      const parsed = JSON.parse(stored);
+      // Shallow-merge with defaults so new fields are always present
+      if (
+        defaultValue &&
+        typeof defaultValue === "object" &&
+        !Array.isArray(defaultValue) &&
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        return { ...defaultValue, ...parsed } as T;
+      }
+      return parsed;
     } catch {
       return defaultValue;
     }

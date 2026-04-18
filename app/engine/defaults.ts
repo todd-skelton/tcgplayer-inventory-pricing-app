@@ -50,6 +50,9 @@ export const DEFAULT_MARKETPLACE_CONFIG: MarketplacePricingConfig = {
   dropProtectionSets: ["RA0", "DT0"],
   dropProtectionThreshold: 0.75,
 
+  lockedSets: [],
+  lockedCards: [],
+
   excludedIds: [
     "7933574", "7933575", "7916036", "7916037", "7916046", "7916047",
     "7916041", "7916042", "7933594", "7933595", "7933589", "7933590",

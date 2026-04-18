@@ -1,6 +1,7 @@
 import type {
   TcgPlayerListingRaw,
   Listing,
+  CardLock,
   MarketplacePricingConfig,
   SimpleMarketplacePricingConfig,
   ListingSummary,
@@ -184,10 +185,39 @@ export function calculateMarketplacePrice(
     targetPrice = listing.tcgMarketplacePrice;
   }
 
-  // Step 6: Apply rarity floor and assign
-  listing.tcgMarketplacePrice = roundTo(
-    Math.max(rarityFloor, targetPrice),
-    2
+  // Step 6: Apply rarity floor
+  targetPrice = Math.max(rarityFloor, targetPrice);
+
+  // Step 7a: Set lock – block all changes for locked sets
+  if (isSetLocked(listing.setName, config.lockedSets ?? [])) {
+    listing.skippedReason = "Set locked";
+    return;
+  }
+
+  // Step 7b: Card lock – block all changes for locked cards (by number + rarity)
+  if (isCardLocked(listing.number, listing.rarity, config.lockedCards ?? [])) {
+    listing.skippedReason = "Card locked";
+    return;
+  }
+
+  // Step 8: Assign final price
+  listing.tcgMarketplacePrice = roundTo(targetPrice, 2);
+}
+
+export function isSetLocked(
+  setName: string,
+  lockedSets: string[]
+): boolean {
+  return lockedSets.includes(setName);
+}
+
+export function isCardLocked(
+  number: string,
+  rarity: string,
+  lockedCards: CardLock[]
+): boolean {
+  return lockedCards.some(
+    (c) => c.number === number && c.rarity === rarity
   );
 }
 

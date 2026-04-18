@@ -1,28 +1,78 @@
+import { useState } from "react";
 import {
   Table,
   TableHead,
   TableBody,
   TableRow,
   TableCell,
+  TableSortLabel,
   Typography,
   Box,
   Tooltip,
   Stack,
+  IconButton,
+  TextField,
 } from "@mui/material";
-import type { Listing } from "~/engine/types";
+import LockIcon from "@mui/icons-material/Lock";
+import LockOpenIcon from "@mui/icons-material/LockOpen";
+import type { Listing, CardLock } from "~/engine/types";
 import {
   currencyFormatter,
   changeCurrencyFormatter,
   changePercentageFormatter,
 } from "~/engine/formatters";
-import PriceChangeChip from "~/components/PriceChangeChip";
+
+export type SortKey =
+  | "productName"
+  | "setName"
+  | "rarity"
+  | "condition"
+  | "tcgMarketPrice"
+  | "tcgLowPrice"
+  | "tcgLowPriceWithShipping"
+  | "quantity"
+  | "currentMarketplacePrice"
+  | "tcgMarketplacePrice"
+  | "change";
+
+export type SortDirection = "asc" | "desc";
 
 interface MarketplaceResultsTableProps {
   listings: Listing[];
+  lockedSets: string[];
+  lockedCards: CardLock[];
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort: (key: SortKey) => void;
+  onPriceChange: (tcgPlayerId: string, newPrice: number) => void;
+  onToggleSetLock: (setName: string) => void;
+  onToggleCardLock: (number: string, rarity: string) => void;
+}
+
+function checkSetLocked(setName: string, lockedSets: string[]): boolean {
+  return lockedSets.includes(setName);
+}
+
+function checkCardLocked(
+  number: string,
+  rarity: string,
+  lockedCards: CardLock[]
+): boolean {
+  return lockedCards.some(
+    (c) => c.number === number && c.rarity === rarity
+  );
 }
 
 export default function MarketplaceResultsTable({
   listings,
+  lockedSets,
+  lockedCards,
+  sortKey,
+  sortDirection,
+  onSort,
+  onPriceChange,
+  onToggleSetLock,
+  onToggleCardLock,
 }: MarketplaceResultsTableProps) {
   if (listings.length === 0) {
     return (
@@ -34,161 +84,272 @@ export default function MarketplaceResultsTable({
     );
   }
 
+  const headerSx = { fontWeight: 700, whiteSpace: "nowrap" } as const;
+
+  const sortableHeader = (
+    label: string,
+    key: SortKey,
+    align?: "left" | "right" | "center"
+  ) => (
+    <TableCell sx={headerSx} align={align}>
+      <TableSortLabel
+        active={sortKey === key}
+        direction={sortKey === key ? sortDirection : "asc"}
+        onClick={() => onSort(key)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
   return (
     <Box sx={{ overflow: "auto" }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-              Product
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-              Set / Number
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-              Rarity
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-              Condition
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              Market
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              Low
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              Low + Ship
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              Qty
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              Current Price
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="right">
-              New Price
-            </TableCell>
-            <TableCell sx={{ fontWeight: 700, whiteSpace: "nowrap" }} align="center">
-              Change
+            {sortableHeader("Product", "productName")}
+            {sortableHeader("Set / Number", "setName")}
+            {sortableHeader("Rarity", "rarity")}
+            {sortableHeader("Condition", "condition")}
+            {sortableHeader("Market", "tcgMarketPrice", "right")}
+            {sortableHeader("Low", "tcgLowPrice", "right")}
+            {sortableHeader("Low + Ship", "tcgLowPriceWithShipping", "right")}
+            {sortableHeader("Qty", "quantity", "right")}
+            {sortableHeader("Current Price", "currentMarketplacePrice", "right")}
+            {sortableHeader("New Price", "tcgMarketplacePrice", "right")}
+            {sortableHeader("Change", "change", "center")}
+            <TableCell sx={headerSx} align="center">
+              Actions
             </TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {listings.map((listing) => {
-            const delta =
-              listing.tcgMarketplacePrice - listing.currentMarketplacePrice;
-            const pct =
-              listing.currentMarketplacePrice !== 0
-                ? delta / listing.currentMarketplacePrice
-                : 0;
-            const deltaColor =
-              delta > 0
-                ? "success.main"
-                : delta < 0
-                ? "error.main"
-                : "text.secondary";
-
-            return (
-              <TableRow
-                key={listing.tcgPlayerId}
-                sx={{
-                  "&:hover": { bgcolor: "action.hover" },
-                }}
-              >
-                <TableCell>
-                  <Tooltip title={listing.productName} placement="top-start">
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      sx={{ maxWidth: 220 }}
-                    >
-                      {listing.productName}
-                    </Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
-                  <Stack>
-                    <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
-                      {listing.setName}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                    >
-                      {listing.number}
-                    </Typography>
-                  </Stack>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
-                    {listing.rarity}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2">{listing.condition}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {isNaN(listing.tcgMarketPrice)
-                      ? "-"
-                      : currencyFormatter.format(listing.tcgMarketPrice)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {isNaN(listing.tcgLowPrice)
-                      ? "-"
-                      : currencyFormatter.format(listing.tcgLowPrice)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {isNaN(listing.tcgLowPriceWithShipping)
-                      ? "-"
-                      : currencyFormatter.format(
-                          listing.tcgLowPriceWithShipping
-                        )}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {(listing.totalQuantity || 0) +
-                      (listing.addToQuantity || 0)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2">
-                    {currencyFormatter.format(listing.currentMarketplacePrice)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body2" fontWeight={700} color={deltaColor}>
-                    {currencyFormatter.format(listing.tcgMarketplacePrice)}
-                  </Typography>
-                </TableCell>
-                <TableCell align="center">
-                  <Stack direction="row" spacing={0.5} justifyContent="center">
-                    <Typography
-                      variant="caption"
-                      fontWeight={600}
-                      color={deltaColor}
-                    >
-                      {changeCurrencyFormatter.format(delta)}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      color={deltaColor}
-                    >
-                      ({changePercentageFormatter.format(pct)})
-                    </Typography>
-                  </Stack>
-                </TableCell>
-              </TableRow>
-            );
-          })}
+          {listings.map((listing) => (
+            <ResultRow
+              key={listing.tcgPlayerId}
+              listing={listing}
+              setLocked={checkSetLocked(listing.setName, lockedSets)}
+              cardLocked={checkCardLocked(listing.number, listing.rarity, lockedCards)}
+              onPriceChange={onPriceChange}
+              onToggleSetLock={onToggleSetLock}
+              onToggleCardLock={onToggleCardLock}
+            />
+          ))}
         </TableBody>
       </Table>
     </Box>
+  );
+}
+
+function ResultRow({
+  listing,
+  setLocked,
+  cardLocked,
+  onPriceChange,
+  onToggleSetLock,
+  onToggleCardLock,
+}: {
+  listing: Listing;
+  setLocked: boolean;
+  cardLocked: boolean;
+  onPriceChange: (tcgPlayerId: string, newPrice: number) => void;
+  onToggleSetLock: (setName: string) => void;
+  onToggleCardLock: (number: string, rarity: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+
+  const locked = setLocked || cardLocked;
+
+  const delta =
+    listing.tcgMarketplacePrice - listing.currentMarketplacePrice;
+  const pct =
+    listing.currentMarketplacePrice !== 0
+      ? delta / listing.currentMarketplacePrice
+      : 0;
+  const deltaColor =
+    delta > 0
+      ? "success.main"
+      : delta < 0
+      ? "error.main"
+      : "text.secondary";
+
+  const startEditing = () => {
+    setEditValue(listing.tcgMarketplacePrice.toFixed(2));
+    setEditing(true);
+  };
+
+  const commitEdit = () => {
+    const parsed = parseFloat(editValue);
+    if (!isNaN(parsed) && parsed >= 0) {
+      onPriceChange(listing.tcgPlayerId, Math.round(parsed * 100) / 100);
+    }
+    setEditing(false);
+  };
+
+  return (
+    <TableRow
+      sx={{
+        "&:hover": { bgcolor: "action.hover" },
+        ...(locked && {
+          bgcolor: "action.selected",
+          borderLeft: "3px solid",
+          borderLeftColor: setLocked ? "warning.main" : "primary.main",
+        }),
+      }}
+    >
+      <TableCell>
+        <Tooltip title={listing.productName} placement="top-start">
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{ maxWidth: 220 }}
+          >
+            {listing.productName}
+          </Typography>
+        </Tooltip>
+      </TableCell>
+      <TableCell>
+        <Stack direction="row" alignItems="center" spacing={0.5}>
+          <Stack sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+              {listing.setName}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+            >
+              {listing.number}
+            </Typography>
+          </Stack>
+          <Tooltip title={setLocked ? "Unlock set" : "Lock set (blocks all price changes)"}>
+            <IconButton
+              size="small"
+              color={setLocked ? "warning" : "default"}
+              onClick={() => onToggleSetLock(listing.setName)}
+              sx={{ ml: 0.5, opacity: setLocked ? 1 : 0.4, "&:hover": { opacity: 1 } }}
+            >
+              {setLocked ? <LockIcon sx={{ fontSize: 14 }} /> : <LockOpenIcon sx={{ fontSize: 14 }} />}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </TableCell>
+      <TableCell>
+        <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
+          {listing.rarity}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <Typography variant="body2">{listing.condition}</Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {isNaN(listing.tcgMarketPrice)
+            ? "-"
+            : currencyFormatter.format(listing.tcgMarketPrice)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {isNaN(listing.tcgLowPrice)
+            ? "-"
+            : currencyFormatter.format(listing.tcgLowPrice)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {isNaN(listing.tcgLowPriceWithShipping)
+            ? "-"
+            : currencyFormatter.format(
+                listing.tcgLowPriceWithShipping
+              )}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {(listing.totalQuantity || 0) +
+            (listing.addToQuantity || 0)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="body2">
+          {currencyFormatter.format(listing.currentMarketplacePrice)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        {editing ? (
+          <TextField
+            size="small"
+            type="number"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitEdit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            autoFocus
+            slotProps={{
+              input: {
+                sx: {
+                  fontSize: "0.875rem",
+                  fontWeight: 700,
+                  py: 0,
+                  "& input": { textAlign: "right", p: "4px 8px", width: 70 },
+                },
+              },
+            }}
+          />
+        ) : (
+          <Tooltip title="Click to edit" placement="top">
+            <Typography
+              variant="body2"
+              fontWeight={700}
+              color={deltaColor}
+              onClick={startEditing}
+              sx={{
+                cursor: "pointer",
+                borderBottom: "1px dashed",
+                borderColor: "divider",
+                display: "inline-block",
+                "&:hover": { borderColor: "primary.main" },
+              }}
+            >
+              {currencyFormatter.format(listing.tcgMarketplacePrice)}
+            </Typography>
+          </Tooltip>
+        )}
+      </TableCell>
+      <TableCell align="center">
+        <Stack direction="row" spacing={0.5} justifyContent="center">
+          <Typography
+            variant="caption"
+            fontWeight={600}
+            color={deltaColor}
+          >
+            {changeCurrencyFormatter.format(delta)}
+          </Typography>
+          <Typography
+            variant="caption"
+            color={deltaColor}
+          >
+            ({changePercentageFormatter.format(pct)})
+          </Typography>
+        </Stack>
+      </TableCell>
+      <TableCell align="center">
+        <Tooltip title={cardLocked ? "Unlock card" : "Lock card (blocks all price changes)"}>
+          <IconButton
+            size="small"
+            color={cardLocked ? "primary" : "default"}
+            onClick={() =>
+              onToggleCardLock(listing.number, listing.rarity)
+            }
+          >
+            {cardLocked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+      </TableCell>
+    </TableRow>
   );
 }
