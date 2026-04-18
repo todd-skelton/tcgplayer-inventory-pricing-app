@@ -36,6 +36,7 @@ import {
   serializeListingRow,
   prefilterListing,
   calculateMarketplacePrice,
+  getEffectiveMarketplacePrice,
   postfilterListing,
   calculateListingSummary,
 } from "~/engine/marketplace-engine";
@@ -83,7 +84,11 @@ export default function MarketplacePage() {
     DEFAULT_MARKETPLACE_CONFIG
   );
   const [listings, setListings] = useState<Listing[]>([]);
-  const [summary, setSummary] = useState<ListingSummary | null>(null);
+  const [allListings, setAllListings] = useState<Listing[]>([]);
+  const [summaryCounts, setSummaryCounts] = useState<{
+    skipped: number;
+    errors: number;
+  } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [page, setPage] = useState(0);
@@ -99,6 +104,7 @@ export default function MarketplacePage() {
     (file: File) => {
       setProcessing(true);
       const results: Listing[] = [];
+      const uploadedListings: Listing[] = [];
       let skipped = 0;
       let errors = 0;
 
@@ -108,8 +114,10 @@ export default function MarketplacePage() {
         step: (row) => {
           try {
             const listing = parseListingRow(row.data);
+            uploadedListings.push(listing);
             const filter = prefilterListing(listing, config);
             if (!filter.pass) {
+              listing.skippedReason = filter.reason;
               skipped++;
               return;
             }
@@ -130,7 +138,8 @@ export default function MarketplacePage() {
         },
         complete: () => {
           setListings(results);
-          setSummary(calculateListingSummary(results, skipped, errors));
+          setAllListings(uploadedListings);
+          setSummaryCounts({ skipped, errors });
           setProcessing(false);
           setActiveStep(2);
           setPage(0);
@@ -144,8 +153,31 @@ export default function MarketplacePage() {
     [config]
   );
 
+  const downloadListings = useMemo(
+    () =>
+      allListings.filter((listing) => {
+        const effectiveMarketplacePrice = getEffectiveMarketplacePrice(listing, {
+          lockedSets: config.lockedSets ?? [],
+          lockedCards: config.lockedCards ?? [],
+          lockMode: config.lockMode ?? "full",
+        });
+
+        return effectiveMarketplacePrice !== listing.currentMarketplacePrice;
+      }),
+    [allListings, config.lockMode, config.lockedCards, config.lockedSets]
+  );
+
   const handleDownload = useCallback(() => {
-    const rows = listings.map(serializeListingRow);
+    const rows = downloadListings.map((listing) =>
+      serializeListingRow({
+        ...listing,
+        tcgMarketplacePrice: getEffectiveMarketplacePrice(listing, {
+          lockedSets: config.lockedSets ?? [],
+          lockedCards: config.lockedCards ?? [],
+          lockMode: config.lockMode ?? "full",
+        }),
+      })
+    );
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -156,47 +188,17 @@ export default function MarketplacePage() {
       .replace(/[:T-]/g, ".")}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [listings]);
+  }, [config.lockMode, config.lockedCards, config.lockedSets, downloadListings]);
 
   const handlePriceChange = useCallback(
     (tcgPlayerId: string, newPrice: number) => {
-      setListings((prev) => {
-        const updated = prev.map((l) =>
-          l.tcgPlayerId === tcgPlayerId
-            ? { ...l, tcgMarketplacePrice: newPrice }
-            : l
-        );
-        // Recalculate summary inline
-        let currentTotalValue = 0;
-        let newTotalValue = 0;
-        let totalChangePercent = 0;
-        let changeCount = 0;
-        for (const l of updated) {
-          const qty = (l.totalQuantity || 0) + (l.addToQuantity || 0);
-          currentTotalValue += (l.currentMarketplacePrice || 0) * qty;
-          newTotalValue += (l.tcgMarketplacePrice || 0) * qty;
-          if (l.currentMarketplacePrice > 0) {
-            totalChangePercent +=
-              (l.tcgMarketplacePrice - l.currentMarketplacePrice) /
-              l.currentMarketplacePrice;
-            changeCount++;
-          }
-        }
-        setSummary((s) =>
-          s
-            ? {
-                ...s,
-                currentTotalValue: Math.round(currentTotalValue * 100) / 100,
-                newTotalValue: Math.round(newTotalValue * 100) / 100,
-                valueDelta:
-                  Math.round((newTotalValue - currentTotalValue) * 100) / 100,
-                averageChangePercent:
-                  changeCount > 0 ? totalChangePercent / changeCount : 0,
-              }
-            : s
-        );
-        return updated;
-      });
+      const updateListingPrice = (listing: Listing) =>
+        listing.tcgPlayerId === tcgPlayerId
+          ? { ...listing, tcgMarketplacePrice: newPrice }
+          : listing;
+
+      setListings((prev) => prev.map(updateListingPrice));
+      setAllListings((prev) => prev.map(updateListingPrice));
     },
     []
   );
@@ -235,7 +237,8 @@ export default function MarketplacePage() {
 
   const handleReset = useCallback(() => {
     setListings([]);
-    setSummary(null);
+    setAllListings([]);
+    setSummaryCounts(null);
     setActiveStep(0);
     setPage(0);
     setFilters(EMPTY_FILTERS);
@@ -363,6 +366,28 @@ export default function MarketplacePage() {
     [filteredListings, page, rowsPerPage]
   );
 
+  const summary = useMemo<ListingSummary | null>(() => {
+    if (!summaryCounts) {
+      return null;
+    }
+
+    return calculateListingSummary(allListings, {
+      changedCount: listings.length,
+      skipped: summaryCounts.skipped,
+      errors: summaryCounts.errors,
+      lockedSets: config.lockedSets ?? [],
+      lockedCards: config.lockedCards ?? [],
+      lockMode: config.lockMode ?? "full",
+    });
+  }, [
+    allListings,
+    config.lockMode,
+    config.lockedCards,
+    config.lockedSets,
+    listings.length,
+    summaryCounts,
+  ]);
+
   return (
     <Container maxWidth={false} sx={{ overflow: "hidden" }}>
       <PageHeader
@@ -370,7 +395,7 @@ export default function MarketplacePage() {
         description="Upload your TCGPlayer inventory export and get optimized marketplace prices."
         icon={<StorefrontIcon />}
         action={
-          listings.length > 0 ? (
+          downloadListings.length > 0 ? (
             <Stack direction="row" spacing={1}>
               <Button
                 variant="contained"
@@ -388,6 +413,14 @@ export default function MarketplacePage() {
                 Start Over
               </Button>
             </Stack>
+          ) : listings.length > 0 ? (
+            <Button
+              variant="outlined"
+              startIcon={<RestartAltIcon />}
+              onClick={handleReset}
+            >
+              Start Over
+            </Button>
           ) : undefined
         }
       />
@@ -518,13 +551,14 @@ export default function MarketplacePage() {
           >
             <DownloadIcon />
             <Typography variant="body1" fontWeight={600} sx={{ flexGrow: 1 }}>
-              {quantityFormatter.format(listings.length)} items ready for download
+              {quantityFormatter.format(downloadListings.length)} items ready for download
             </Typography>
             <Button
               variant="contained"
               color="inherit"
               startIcon={<DownloadIcon />}
               onClick={handleDownload}
+              disabled={downloadListings.length === 0}
               sx={{ color: "success.main", bgcolor: "white" }}
             >
               Download CSV

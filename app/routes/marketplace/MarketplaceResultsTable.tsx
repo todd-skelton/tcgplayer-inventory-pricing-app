@@ -233,6 +233,8 @@ function ResultRow({
   const [editValue, setEditValue] = useState("");
 
   const locked = setLocked || cardLocked;
+  const downloadUsesCurrentPrice =
+    locked && (lockMode === "full" || listing.tcgMarketplacePrice <= listing.currentMarketplacePrice);
   const rowBg = locked ? "action.selected" : "background.paper";
 
   const delta =
@@ -299,7 +301,13 @@ function ResultRow({
               {listing.number}
             </Typography>
           </Stack>
-          <Tooltip title={setLocked ? "Unlock set" : `Lock set (${lockMode === "partial" ? "blocks decreases only" : "blocks all price changes"})`}>
+          <Tooltip
+            title={
+              setLocked
+                ? "Unlock set"
+                : `Lock set (${lockMode === "partial" ? "blocks decreases only" : "keeps the current price in downloads"})`
+            }
+          >
             <IconButton
               size="small"
               color={setLocked ? "warning" : "default"}
@@ -385,7 +393,14 @@ function ResultRow({
             }}
           />
         ) : (
-          <Tooltip title="Click to edit" placement="top">
+          <Tooltip
+            title={
+              downloadUsesCurrentPrice
+                ? "Preview price stays visible here, but the download will keep the current price while this lock is active."
+                : "Click to edit"
+            }
+            placement="top"
+          >
             <Typography
               variant="body2"
               fontWeight={700}
@@ -396,6 +411,10 @@ function ResultRow({
                 borderBottom: "1px dashed",
                 borderColor: "divider",
                 display: "inline-block",
+                textDecoration: downloadUsesCurrentPrice ? "line-through" : "none",
+                textDecorationThickness: downloadUsesCurrentPrice ? "2px" : undefined,
+                textDecorationColor: downloadUsesCurrentPrice ? "currentColor" : undefined,
+                opacity: downloadUsesCurrentPrice ? 0.7 : 1,
                 "&:hover": { borderColor: "primary.main" },
               }}
             >
@@ -431,7 +450,13 @@ function ResultRow({
         className="sticky-action-cell"
         sx={[columnSx.actions, stickyActionSx, { zIndex: 2 }]}
       >
-        <Tooltip title={cardLocked ? "Unlock card" : `Lock card (${lockMode === "partial" ? "blocks decreases only" : "blocks all price changes"})`}>
+        <Tooltip
+          title={
+            cardLocked
+              ? "Unlock card"
+              : `Lock card (${lockMode === "partial" ? "blocks decreases only" : "keeps the current price in downloads"})`
+          }
+        >
           <IconButton
             size="small"
             color={cardLocked ? "primary" : "default"}

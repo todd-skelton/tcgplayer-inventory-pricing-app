@@ -236,6 +236,34 @@ export function shouldBlockLockedPrice(
   return targetPrice <= currentPrice;
 }
 
+export function getEffectiveMarketplacePrice(
+  listing: Listing,
+  options: {
+    lockedSets?: string[];
+    lockedCards?: CardLock[];
+    lockMode?: LockMode;
+  } = {}
+): number {
+  const lockedSets = options.lockedSets ?? [];
+  const lockedCards = options.lockedCards ?? [];
+  const lockMode = options.lockMode ?? "full";
+  const locked =
+    isSetLocked(listing.setName, lockedSets) ||
+    isCardLocked(listing.number, listing.rarity, lockedCards);
+
+  if (!locked) {
+    return listing.tcgMarketplacePrice;
+  }
+
+  return shouldBlockLockedPrice(
+    listing.tcgMarketplacePrice,
+    listing.currentMarketplacePrice,
+    lockMode
+  )
+    ? listing.currentMarketplacePrice
+    : listing.tcgMarketplacePrice;
+}
+
 function getRarityFloor(
   setPrefix: string,
   rarity: string,
@@ -315,32 +343,46 @@ export function postfilterListing(listing: Listing): boolean {
 
 export function calculateListingSummary(
   listings: Listing[],
-  skipped: number,
-  errors: number
+  options: {
+    changedCount: number;
+    skipped: number;
+    errors: number;
+    lockedSets?: string[];
+    lockedCards?: CardLock[];
+    lockMode?: LockMode;
+  }
 ): ListingSummary {
   let currentTotalValue = 0;
   let newTotalValue = 0;
   let totalChangePercent = 0;
   let changeCount = 0;
+  const lockedSets = options.lockedSets ?? [];
+  const lockedCards = options.lockedCards ?? [];
+  const lockMode = options.lockMode ?? "full";
 
   for (const l of listings) {
     const qty = (l.totalQuantity || 0) + (l.addToQuantity || 0);
+    const effectiveMarketplacePrice = getEffectiveMarketplacePrice(l, {
+      lockedSets,
+      lockedCards,
+      lockMode,
+    });
     currentTotalValue += (l.currentMarketplacePrice || 0) * qty;
-    newTotalValue += (l.tcgMarketplacePrice || 0) * qty;
+    newTotalValue += (effectiveMarketplacePrice || 0) * qty;
 
     if (l.currentMarketplacePrice > 0) {
       totalChangePercent +=
-        (l.tcgMarketplacePrice - l.currentMarketplacePrice) /
+        (effectiveMarketplacePrice - l.currentMarketplacePrice) /
         l.currentMarketplacePrice;
       changeCount++;
     }
   }
 
   return {
-    totalProcessed: listings.length + skipped,
-    totalSkipped: skipped,
-    totalChanged: listings.length,
-    totalErrors: errors,
+    totalProcessed: listings.length,
+    totalSkipped: options.skipped,
+    totalChanged: options.changedCount,
+    totalErrors: options.errors,
     currentTotalValue: roundTo(currentTotalValue, 2),
     newTotalValue: roundTo(newTotalValue, 2),
     valueDelta: roundTo(newTotalValue - currentTotalValue, 2),
